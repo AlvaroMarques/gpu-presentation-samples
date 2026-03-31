@@ -54,7 +54,7 @@ int main() {
     cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
     check_err(err, "clCreateContext");
 
-    cl_command_queue queue = clCreateCommandQueue(ctx, device, 0, &err);
+    cl_command_queue queue = clCreateCommandQueue(ctx, device, CL_QUEUE_PROFILING_ENABLE, &err);
     check_err(err, "clCreateCommandQueue");
 
     // Create buffers
@@ -89,16 +89,34 @@ int main() {
 
     // Execute
     size_t global_size = N;
-    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, NULL, 0, NULL, NULL);
+    cl_event kernel_event;
+    err = clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, NULL, 0, NULL, &kernel_event);
     check_err(err, "clEnqueueNDRangeKernel");
 
     // Read result
-    err = clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, bytes, c, 0, NULL, NULL);
+    cl_event read_event;
+    err = clEnqueueReadBuffer(queue, buf_c, CL_TRUE, 0, bytes, c, 0, NULL, &read_event);
     check_err(err, "clEnqueueReadBuffer");
 
-    for (int i = 0; i < N; i++) {
-		printf("%.4f\n", c[i]);
-    }
+    // Get profiling info
+    clFinish(queue);
+
+    cl_ulong k_start, k_end, r_start, r_end;
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(k_start), &k_start, NULL);
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(k_end), &k_end, NULL);
+    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_START, sizeof(r_start), &r_start, NULL);
+    clGetEventProfilingInfo(read_event, CL_PROFILING_COMMAND_END, sizeof(r_end), &r_end, NULL);
+
+    double kernel_ms = (k_end - k_start) / 1e6;
+    double read_ms = (r_end - r_start) / 1e6;
+    double total_ms = (r_end - k_start) / 1e6;
+    printf("Kernel:    %.4f ms\n", kernel_ms);
+    printf("ReadBack:  %.4f ms\n", read_ms);
+    printf("Total:     %.4f ms\n", total_ms);
+
+    clReleaseEvent(kernel_event);
+    clReleaseEvent(read_event);
+
 
     // Cleanup
     clReleaseMemObject(buf_a);

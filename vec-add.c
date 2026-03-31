@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <mach/mach_time.h>
 
 int main() {
 	int n;
@@ -19,13 +20,17 @@ int main() {
 	}
 
 
+	mach_timebase_info_data_t info;
+	mach_timebase_info(&info);
+
+	uint64_t t_start = mach_absolute_time();
 	for (i = 0; i < n; i++) {
 		output[i] = a[i] + b[i];
 	}
+	uint64_t t_end = mach_absolute_time();
 
-	for (i = 0; i < n; i++) {
-		printf("%.2f\n", output[i]);
-	}
+	double elapsed_ns = (double)(t_end - t_start) * info.numer / info.denom;
+	printf("Compute: %.4f ms\n", elapsed_ns / 1e6);
 
 	return 0;
 
